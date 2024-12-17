@@ -5,13 +5,13 @@
       <el-col :span="20">
         <h2>生成报告</h2>
         <el-form :model="generateForm" @submit.prevent="handleGenerate">
-          <el-form-item label="选择模板">
+          <el-form-item label="选择模板" style="width: 600px;">
             <el-select v-model="generateForm.templateId" placeholder="请选择模板">
               <el-option
                 v-for="template in templates"
-                :key="template.id"
+                :key="template.name"
                 :label="template.name"
-                :value="template.id"
+                :value="template.path"
               ></el-option>
             </el-select>
           </el-form-item>
@@ -46,19 +46,26 @@ export default {
         this.$message.error('请选择模板');
         return;
       }
+      const dataJson = this.getDataJson();
+      if(!dataJson || dataJson.length === 0) {
+        this.$message.error('没有解析出有效数据');
+        return;
+      }
       try {
-        const dataJson = this.getDataJson();
+        console.log(this.generateForm.templateId);
         // eslint-disable-next-line no-unused-vars
-        // const response = await axios.post('/api/reports/generate', dataJson, {
-        //   headers: {
-        //     'Content-Type': 'multipart/form-data',
-        //     'Access-Control-Allow-Origin': '*'
-        //   },
-        // });
+        const response = await axios.post('/api/reports/generate', {
+          templatePath: this.generateForm.templateId,
+          data: JSON.stringify(dataJson)
+        }, {
+          headers: {
+            'Access-Control-Allow-Origin': '*'
+          },
+        });
         this.$message.success('报告生成任务已提交');
         this.generateForm.templateId = '';
         console.log(dataJson);
-        // this.fetchReportRecords();
+        this.downloadReport();
       } catch (error) {
         this.$message.error('报告生成失败');
         console.error(error);
@@ -88,7 +95,7 @@ export default {
     },
     async fetchTemplates() {
       try {
-        const response = await axios.get('/api/templates');
+        const response = await axios.get('/api/templates/list');
         this.templates = response.data;
       } catch (error) {
         this.$message.error('获取模板列表失败');
@@ -117,6 +124,7 @@ export default {
     },
   },
   mounted() {
+    this.fetchTemplates();
     this.designer = new GC.Spread.Sheets.Designer.Designer('spreadjs')
   },
 };

@@ -5,9 +5,6 @@
       <el-col :span="20">
         <h2>上传模板</h2>
         <el-form :model="uploadForm" @submit.prevent="handleUpload">
-          <el-form-item label="模板名称">
-            <el-input v-model="uploadForm.name" placeholder="请输入模板名称" ></el-input>
-          </el-form-item>
           <el-form-item label="模板文件">
             <el-upload
               class="upload-demo"
@@ -15,6 +12,7 @@
               drag
               :limit="1"
               :on-exceed="handleExceed"
+              :on-change="changeFile"
               :auto-upload="false"
               :file-list="fileList"
               :on-preview="handlePreview"
@@ -46,7 +44,7 @@
               <el-button
                 size="mini"
                 type="primary"
-                @click="downloadTemplate(row.id)"
+                @click="downloadTemplate(row.name)"
               >下载</el-button>
             </template>
           </el-table-column>
@@ -71,38 +69,24 @@ export default {
     };
   },
   methods: {
-    beforeUpload(file) {
-      const isDocx = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      if (!isDocx) {
-        this.$message.error('只能上传 .docx 文件');
-      }
-      if (isDocx) {
-        this.fileList.push(file);
-      }
-      return false; // 阻止自动上传
+    changeFile(file) {
+      this.fileList = [file.raw];
+      return false;
     },
     handleExceed() {
       this.$message.error('只能上传一个文件');
     },
     async handleUpload() {
-      if (!this.uploadForm.name) {
-        this.$message.error('请输入模板名称');
-        return;
-      }
       if (this.fileList.length === 0) {
         this.$message.error('请上传模板文件');
         return;
       }
-
       const formData = new FormData();
-      formData.append('name', this.uploadForm.name);
       formData.append('file', this.fileList[0]);
-
       try {
         // eslint-disable-next-line no-unused-vars
         const response = await axios.post('/api/templates/upload', formData, {
           headers: {
-            'Content-Type': 'multipart/form-data',
             'Access-Control-Allow-Origin': '*'
           },
         });
@@ -117,31 +101,30 @@ export default {
     },
     async fetchTemplates() {
       try {
-        const response = await axios.get('/api/templates');
+        const response = await axios.get('/api/templates/list');
         this.templates = response.data;
       } catch (error) {
         this.$message.error('获取模板列表失败');
         console.error(error);
       }
     },
-    async downloadTemplate(id) {
+    async downloadTemplate(templateName) {
       try {
-        const response = await axios.get(`/api/templates/download/${id}`, {
-          responseType: 'blob',
-          headers: {
-            'Access-Control-Allow-Origin': '*'
-          },
+        const response = await axios.get(`/api/templates/download/${templateName}`, {
+          responseType: 'blob' // 接收二进制文件
         });
+
+        // 创建文件下载链接
         const url = window.URL.createObjectURL(new Blob([response.data]));
         const link = document.createElement('a');
         link.href = url;
-        const template = this.templates.find(t => t.id === id);
-        link.setAttribute('download', template.name + '.docx');
+        link.setAttribute('download', templateName);
         document.body.appendChild(link);
         link.click();
-        link.remove();
+
+        this.$message.success('模板下载成功');
       } catch (error) {
-        this.$message.error('下载失败');
+        this.$message.error('下载模板失败');
         console.error(error);
       }
     },
