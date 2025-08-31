@@ -2,7 +2,7 @@
 <template>
   <div>
     <el-row>
-      <el-col :span="20">
+      <el-col :span="24">
         <h2>上传模板</h2>
         <el-form :model="uploadForm" @submit.prevent="handleUpload">
           <el-form-item label="模板文件">
@@ -33,7 +33,7 @@
 
       
     <el-row>
-      <el-col :span="20">
+      <el-col :span="24">
         <h2>模板列表</h2>
         <el-table :data="templates" style="width: 100%">
           <el-table-column prop="id" label="ID" width="50"></el-table-column>
