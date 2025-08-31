@@ -46,6 +46,11 @@
                 type="primary"
                 @click="downloadTemplate(row.name)"
               >下载</el-button>
+              <el-button
+                size="mini"
+                type="danger"
+                @click="deleteTemplate(row.name)"
+              >删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -91,7 +96,7 @@ export default {
           },
         });
         this.$message.success('模板上传成功');
-        this.fileList.clear();
+        this.fileList = [];
         this.uploadForm.name = '';
         this.fetchTemplates();
       } catch (error) {
@@ -125,6 +130,16 @@ export default {
         this.$message.success('模板下载成功');
       } catch (error) {
         this.$message.error('下载模板失败');
+        console.error(error);
+      }
+    },
+    async deleteTemplate(templateName) {
+      try {
+        await axios.delete(`/api/templates/delete/${templateName}`);
+        this.$message.success('模板删除成功');
+        this.fetchTemplates();
+      } catch (error) {
+        this.$message.error('删除模板失败');
         console.error(error);
       }
     },

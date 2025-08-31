@@ -16,7 +16,14 @@
             </el-select>
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="handleGenerate">生成报告</el-button>
+            <el-button 
+              type="primary" 
+              @click="handleGenerate" 
+              :loading="isGenerating"
+              :disabled="isGenerating"
+            >
+              {{ isGenerating ? '生成中...' : '生成报告' }}
+            </el-button>
           </el-form-item>
         </el-form>
         <div id="spreadjs" class="spreadjs" />
@@ -38,6 +45,7 @@ export default {
         templateId: '',
       },
       templates: [],
+      isGenerating: false, // 添加生成状态
     };
   },
   methods: {
@@ -46,37 +54,68 @@ export default {
         this.$message.error('请选择模板');
         return;
       }
-      const dataJson = this.getDataJson();
-      if(!dataJson || dataJson.length === 0) {
-        this.$message.error('没有解析出有效数据');
+      
+      const spread = this.designer.getWorkbook();
+      const sheet = spread.getActiveSheet()
+      const startRow = sheet.getActiveRowIndex()
+      const startCol = sheet.getActiveColumnIndex()
+
+      // 询问用户是否确认生成报告
+      const confirm = await this.$confirm('抓取报告数据，从第' + (startRow + 1) + '行，第' + (startCol + 1) + '列开始，是否确认？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      });
+      if(!confirm) {
         return;
       }
-      try {
-        console.log(this.generateForm.templateId);
-        // eslint-disable-next-line no-unused-vars
-        const response = await axios.post('/api/reports/generate', {
-          templatePath: this.generateForm.templateId,
-          data: JSON.stringify(dataJson)
-        }, {
-          headers: {
-            'Access-Control-Allow-Origin': '*'
-          },
-        });
-        this.$message.success('报告生成任务已提交');
-        this.generateForm.templateId = '';
-        console.log(dataJson);
-        this.downloadReport();
-      } catch (error) {
-        this.$message.error('报告生成失败');
-        console.error(error);
+      
+      const dataJson = this.getDataJson(startRow, startCol);
+      if(!dataJson || dataJson.length === 0) {
+        // this.$message.error('没有解析出有效数据');
+        return;
       }
+      
+      // 设置生成状态为true
+      this.isGenerating = true;
+      
+              try {
+          console.log(this.generateForm.templateId);
+          const response = await axios.post('/api/reports/generate', {
+            templatePath: this.generateForm.templateId,
+            data: JSON.stringify(dataJson)
+          }, {
+            headers: {
+              'Access-Control-Allow-Origin': '*'
+            },
+            timeout: 0, // 设置超时时间为0，表示无限等待
+            responseType: 'blob', // 接收二进制文件
+          });
+          
+          // 直接处理返回的ZIP文件
+          const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', `报告_${new Date().getTime()}.zip`);
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          
+          this.$message.success('报告生成成功');
+          this.generateForm.templateId = '';
+          console.log(dataJson);
+        } catch (error) {
+          this.$message.error('报告生成失败');
+          console.error(error);
+        } finally {
+          // 无论成功还是失败，都要重置生成状态
+          this.isGenerating = false;
+        }
     },
-    getDataJson() {
+    getDataJson(startRow, startCol) {
       const spread = this.designer.getWorkbook();
       const sheet = spread.getActiveSheet()
       const res = []
-      const startRow = 4
-      const startCol = 0
       const usedRange = sheet.getUsedRange(GC.Spread.Sheets.UsedRangeType.data);
       if(!usedRange) {
         this.$message.error('未获取到有效数据! 请导入数据文件并选中数据sheet.');
@@ -102,26 +141,7 @@ export default {
         console.error(error);
       }
     },
-    async downloadReport(id) {
-      try {
-        const response = await axios.get(`/api/reports/download/${id}`, {
-          responseType: 'blob',
-          headers: {
-            'Access-Control-Allow-Origin': '*'
-          },
-        });
-        const url = window.URL.createObjectURL(new Blob([response.data]));
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `报告_${id}.zip`);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-      } catch (error) {
-        this.$message.error('下载失败');
-        console.error(error);
-      }
-    },
+
   },
   mounted() {
     this.fetchTemplates();
