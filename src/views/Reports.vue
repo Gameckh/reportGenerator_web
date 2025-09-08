@@ -14,7 +14,7 @@
                   :value="template.path"></el-option>
               </el-select>
             </div>
-            
+
             <!-- 操作按钮 -->
             <div class="form-item-group button-group">
               <el-button type="success" @click="handleImportExcel">
@@ -25,48 +25,56 @@
               </el-button>
             </div>
           </div>
-          
+
           <!-- 第二行：命名方式和相关控件 -->
           <div class="form-row">
             <!-- 命名方式选择 -->
             <div class="form-item-group">
               <label class="form-label">命名方式:</label>
               <el-radio-group v-model="generateForm.namingMethod" @change="handleNamingMethodChange" size="small">
-                <el-radio label="column">列命名</el-radio>
-                <el-radio label="custom">自定义</el-radio>
+                <el-radio value="column">列命名</el-radio>
+                <el-radio value="custom">自定义</el-radio>
               </el-radio-group>
             </div>
-            
+
             <!-- 列选择 -->
             <div v-if="generateForm.namingMethod === 'column'" class="form-item-group">
               <label class="form-label">选择列:</label>
               <el-select v-model="generateForm.nameColumn" placeholder="选择列" size="small" style="width: 150px;">
-                <el-option 
-                  v-for="(col, index) in availableColumns" 
-                  :key="index" 
-                  :label="`${getColumnLabel(index)}: ${col}`" 
-                  :value="index.toString()">
+                <el-option v-for="(col, index) in availableColumns" :key="index"
+                  :label="`${getColumnLabel(index)}: ${col}`" :value="index.toString()">
                 </el-option>
               </el-select>
             </div>
-            
+
             <!-- 自定义标题输入 -->
             <div v-if="generateForm.namingMethod === 'custom'" class="form-item-group">
               <label class="form-label">报告标题:</label>
-              <el-input 
-                v-model="generateForm.baseFileName" 
-                placeholder="如：员工报告"
-                maxlength="50"
-                size="small"
+              <el-input v-model="generateForm.baseFileName" placeholder="如：员工报告" maxlength="50" size="small"
                 style="width: 150px;">
               </el-input>
             </div>
+
+            <!-- 分隔线 -->
+            <el-divider direction="vertical" style="height: 32px; margin: 0 10px;"></el-divider>
+
+            <!-- 二维码列选择 -->
+            <div class="form-item-group">
+              <label class="form-label">二维码列:</label>
+              <el-select v-model="generateForm.qrCodeColumn" placeholder="选择二维码列" size="small" style="width: 150px;">
+                <el-option v-for="(col, index) in availableColumns" :key="index"
+                  :label="`${getColumnLabel(index)}: ${col}`" :value="index.toString()">
+                </el-option>
+              </el-select>
+            </div>
           </div>
-          
+
           <!-- 提示信息 -->
           <div class="form-tips">
-            <span v-if="generateForm.namingMethod === 'column'">提示：选择某一列的值将作为生成的报告文件名</span>
+            <span v-if="generateForm.namingMethod === 'column'">提示：选择某一列的值将作为生成的报告文件名，如果该列值有重复则报告会被覆盖</span>
             <span v-else-if="generateForm.namingMethod === 'custom'">提示：报告将命名为"标题_序号"的格式，如：员工报告_1.docx</span>
+            <br v-if="generateForm.namingMethod">
+            <span>二维码列：选择包含二维码数据的列，该列的数据将用于生成报告中的二维码</span>
           </div>
         </el-form>
         <div id="spreadjs" class="spreadjs" />
@@ -92,6 +100,7 @@ export default {
         namingMethod: 'column', // 默认使用列命名
         nameColumn: '', // 选择的列索引
         baseFileName: '', // 自定义标题
+        qrCodeColumn: '', // 二维码列索引
       },
       templates: [],
       isGenerating: false, // 添加生成状态
@@ -120,17 +129,22 @@ export default {
       const spread = this.designer.getWorkbook();
       // 导入Excel文件到SpreadJS
       spread.import(file, () => {
-        this.$message.success('Excel文件导入成功！');
         // 清空文件输入框，允许重复选择同一文件
         const fileInput = document.getElementById('selectedFile');
         if (fileInput) fileInput.value = '';
-        
+
         // 更新可用列信息
         this.updateAvailableColumns();
+        // 为了解决第一次导入文件白屏的问题
+        setTimeout(() => {
+          spread.getActiveSheet().repaint();
+        }, 100);
       }, (error) => {
         this.$message.error('Excel文件导入失败：' + error.message);
         const fileInput = document.getElementById('selectedFile');
         if (fileInput) fileInput.value = '';
+      }, {
+        fileType: GC.Spread.Sheets.FileType.excel
       });
     },
 
@@ -139,34 +153,26 @@ export default {
       const spread = this.designer.getWorkbook();
       const sheet = spread.getActiveSheet();
       const usedRange = sheet.getUsedRange(GC.Spread.Sheets.UsedRangeType.data);
-      
+
       if (usedRange) {
         const colCount = usedRange.colCount;
         this.availableColumns = [];
-        
-        // TODO: 从SpreadJS获取列头信息
-        // 可以通过以下方式获取列头：
-        // 1. 获取第一行作为列头: sheet.getText(0, i)
-        // 2. 获取列名: sheet.getColumnName(i) 或类似API
-        // 3. 获取列标题: sheet.getColumnHeaderText(i) 或类似API
-        
+
         for (let i = 0; i < colCount; i++) {
           // 尝试获取列头，如果没有则使用默认的列标记
           let columnHeader = '';
           try {
             // 尝试获取第一行作为列头
             columnHeader = sheet.getText(0, i, GC.Spread.Sheets.SheetArea.colHeader) || '';
-            // TODO: 如果SpreadJS有其他获取列头的方法，可以在这里添加
-            // 例如: columnHeader = sheet.getColumnName(i) || sheet.getColumnHeaderText(i) || '';
           } catch (error) {
             console.warn('获取列头失败:', error);
           }
-          
+
           // 如果列头为空，使用默认的列标记
           if (!columnHeader.trim()) {
             columnHeader = `列${i + 1}`;
           }
-          
+
           this.availableColumns.push(columnHeader);
         }
       }
@@ -203,7 +209,7 @@ export default {
         this.$message.error('请选择用于命名的列');
         return;
       }
-      
+
       if (this.generateForm.namingMethod === 'custom' && !this.generateForm.baseFileName.trim()) {
         this.$message.error('请输入报告标题');
         return;
@@ -235,20 +241,25 @@ export default {
 
       try {
         console.log(this.generateForm.templateId);
-        
+
         // 构建请求参数
         const requestData = {
           templatePath: this.generateForm.templateId,
           data: dataJson // 直接传递数组，不需要JSON.stringify
         };
-        
+
         // 根据命名方式添加相应参数
         if (this.generateForm.namingMethod === 'column') {
           requestData.nameColumn = this.generateForm.nameColumn;
         } else if (this.generateForm.namingMethod === 'custom') {
           requestData.baseFileName = this.generateForm.baseFileName.trim();
         }
-        
+
+        // 添加二维码列参数
+        if (this.generateForm.qrCodeColumn) {
+          requestData.qrCodeColumn = this.generateForm.qrCodeColumn;
+        }
+
         const response = await axios.post('/api/reports/generate', requestData, {
           headers: {
             'Access-Control-Allow-Origin': '*'
@@ -331,7 +342,7 @@ export default {
 }
 
 .spreadjs {
-  height: calc(100vh - 300px);
+  height: calc(100vh - 330px);
   width: 100%;
   border: 'solid gray 1px';
 }
@@ -383,7 +394,7 @@ export default {
   .form-row {
     gap: 10px;
   }
-  
+
   .form-item-group {
     gap: 5px;
   }
@@ -395,7 +406,7 @@ export default {
     align-items: flex-start;
     gap: 8px;
   }
-  
+
   .button-group {
     width: 100%;
     justify-content: flex-start;

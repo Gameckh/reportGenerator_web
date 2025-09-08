@@ -5,7 +5,6 @@
       <el-aside :width="isCollapse ? '64px' : '180px'" style="background-color: #f0f2f5; transition: width 0.3s;">
         <div class="sidebar-header">
           <el-button 
-            type="text" 
             @click="toggleCollapse"
             class="collapse-btn"
           >
