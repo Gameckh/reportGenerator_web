@@ -66,6 +66,13 @@
                   :label="`${getColumnLabel(index)}: ${col}`" :value="index.toString()">
                 </el-option>
               </el-select>
+              <!-- 二维码长宽(正整数输入框),默认38 -->
+              <el-input v-model="generateForm.qrCodeWidth" placeholder="二维码长" size="small" style="width: 150px;"
+                type="number" :min="1" :max="1000" :value="38">
+              </el-input>
+              <el-input v-model="generateForm.qrCodeHeight" placeholder="二维码宽" size="small" style="width: 150px;"
+                type="number" :min="1" :max="1000" :value="38">
+              </el-input>
             </div>
           </div>
 
@@ -101,6 +108,8 @@ export default {
         nameColumn: '', // 选择的列索引
         baseFileName: '', // 自定义标题
         qrCodeColumn: '', // 二维码列索引
+        qrCodeWidth: '', // 二维码长
+        qrCodeHeight: '', // 二维码宽
       },
       templates: [],
       isGenerating: false, // 添加生成状态
@@ -258,6 +267,8 @@ export default {
         // 添加二维码列参数
         if (this.generateForm.qrCodeColumn) {
           requestData.qrCodeColumn = this.generateForm.qrCodeColumn;
+          requestData.qrCodeWidth = this.generateForm.qrCodeWidth;
+          requestData.qrCodeHeight = this.generateForm.qrCodeHeight;
         }
 
         const response = await axios.post('/api/reports/generate', requestData, {
